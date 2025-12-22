@@ -1,5 +1,7 @@
 #[allow(unused_imports)]
 use std::io::{self, Write};
+use std::collections::HashSet;
+
 
 fn read_input(prompt: &str) -> String {
     let mut input  = String::new();
@@ -21,28 +23,25 @@ fn main() {
     loop {
         let input = read_input("$");
 
-        let builtin = ["exit", "echo", "type"];
+        let builtin: HashSet<_> = ["exit", "echo", "type"].iter().cloned().collect();
         let mut parts = input.splitn(2, ' ');
-        let cmd = parts.next().unwrap_or("");
+        let cmd = parts.next().unwrap_or("").trim();
+        let arg = parts.next().unwrap_or("").trim();
 
-        if cmd == "exit" {
-            break;
-        }else if cmd == "echo" {
-            let arg = parts.next().unwrap_or("");
 
-            println!("{arg}");
-        }else if cmd == "type" {
-            let arg = parts.next().unwrap_or("");
-            
-            if builtin.contains(&arg) {
-                println!("{arg} is a shell builtin");
-            }else {
-                println!("{arg}: not found");
+        match cmd {
+            "exit" => break,
+            "echo" => println!("{arg}"),
+            "type" => {
+                if builtin.contains(arg) {
+                    println!("{arg} is a shell builtin");
+                }else {
+                    println!("{arg}: not found");
+                }
             }
+            _ => println!("{cmd}: command not found"),
         }
-        else {
-            println!("{cmd}: command not found");
-        }
+
         
     }
 
