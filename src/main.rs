@@ -21,15 +21,26 @@ fn main() {
     loop {
         let input = read_input("$");
 
+        let builtin = ["exit", "echo", "type"];
         let mut parts = input.splitn(2, ' ');
         let cmd = parts.next().unwrap_or("");
-        let arg = parts.next().unwrap_or("");
 
         if cmd == "exit" {
             break;
         }else if cmd == "echo" {
+            let arg = parts.next().unwrap_or("");
+
             println!("{arg}");
-        }else {
+        }else if cmd == "type" {
+            let arg = parts.next().unwrap_or("");
+            
+            if builtin.contains(&arg) {
+                println!("{arg} is a shell builtin");
+            }else {
+                println!("{arg}: not found");
+            }
+        }
+        else {
             println!("{cmd}: command not found");
         }
         
