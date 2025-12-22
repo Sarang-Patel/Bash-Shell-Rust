@@ -20,6 +20,9 @@ fn main() {
 
     loop {
         let cmd = read_input("$");
+        if cmd == "exit" {
+            break;
+        } 
         println!("{cmd}: command not found");
     }
 
