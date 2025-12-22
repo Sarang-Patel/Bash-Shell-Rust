@@ -19,11 +19,20 @@ fn main() {
     
 
     loop {
-        let cmd = read_input("$");
+        let input = read_input("$");
+
+        let mut parts = input.splitn(2, ' ');
+        let cmd = parts.next().unwrap_or("");
+        let arg = parts.next().unwrap_or("");
+
         if cmd == "exit" {
             break;
-        } 
-        println!("{cmd}: command not found");
+        }else if cmd == "echo" {
+            println!("{arg}");
+        }else {
+            println!("{cmd}: command not found");
+        }
+        
     }
 
 }
