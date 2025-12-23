@@ -76,7 +76,7 @@ fn main() {
                 }
 
             }else{
-                println!("{cmd}: command not found.");
+                println!("{cmd}: command not found");
             }
         }
 
