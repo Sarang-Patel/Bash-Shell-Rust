@@ -2,7 +2,7 @@
 use std::io::{self, Write};
 use std::collections::HashSet;
 use std::{env};
-use std::path::Path;
+use std::path::{Path, PathBuf};
 use is_executable::IsExecutable;
 use std::process::Command;
 
@@ -68,9 +68,22 @@ fn main() {
                     }
                 },
                 "cd" => {
-                    if let Some(dir) = args.get(0) {
-                        if let Err(_) = env::set_current_dir(dir) {
-                            println!("cd: {}: No such file or directory", dir);
+                    let dir = args.get(0);
+
+                    let dir = if let Some(arg) = dir {
+                        if arg == "~"  {
+                            env::home_dir()
+                        }else {
+                            Some(PathBuf::from(arg))
+                        }
+                    }else{
+                        None
+                    };
+
+                    if let Some(path) = dir {
+                        
+                        if let Err(_) = env::set_current_dir(&path) {
+                            println!("cd: {}: No such file or directory", path.display());
                         }
                     } else {
                         println!("cd: missing operand");
