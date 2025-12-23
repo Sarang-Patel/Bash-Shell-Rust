@@ -23,7 +23,7 @@ fn read_input(prompt: &str) -> String {
 fn main() {
         
     let separator = if cfg!(windows) { ";" } else { ":" };
-    let builtin: HashSet<String> = ["exit", "echo", "type", "pwd"].iter().map(|s| s.to_string()).collect();
+    let builtin: HashSet<String> = ["exit", "echo", "type", "pwd", "cd"].iter().map(|s| s.to_string()).collect();
     
     loop {
         let path_var = env::var("PATH").unwrap_or_default();
@@ -66,7 +66,16 @@ fn main() {
                             println!("{}", e);
                         }
                     }
-                }
+                },
+                "cd" => {
+                    if let Some(dir) = args.get(0) {
+                        if let Err(_) = env::set_current_dir(dir) {
+                            println!("cd: {}: No such file or directory", dir);
+                        }
+                    } else {
+                        println!("cd: missing operand");
+                    }
+                },
                 _ => println!("{cmd}: command not found"),
             }
         }else {
