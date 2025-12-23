@@ -62,7 +62,6 @@ fn main() {
         }else {
             if let Some(_full_path) = path_var.split(separator).map(|dir| Path::new(dir).join(cmd.to_string()))
             .find(|p| p.exists() && p.is_executable()) {
-                println!("{}", args.join(" "));
                 let output = Command::new(cmd).args(&args).output().expect("Failed to execute process");
 
                 let stdout = str::from_utf8(&output.stdout).unwrap();
