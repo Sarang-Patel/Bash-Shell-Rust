@@ -1,6 +1,9 @@
 #[allow(unused_imports)]
 use std::io::{self, Write};
 use std::collections::HashSet;
+use std::{env};
+use std::path::Path;
+use is_executable::IsExecutable;
 
 
 fn read_input(prompt: &str) -> String {
@@ -17,8 +20,8 @@ fn read_input(prompt: &str) -> String {
 }
 
 fn main() {
-    // TODO: Uncomment the code below to pass the first stage
-    
+        
+    let path_var = env::var("PATH").expect("PATH not set");
 
     loop {
         let input = read_input("$");
@@ -36,6 +39,16 @@ fn main() {
                 if builtin.contains(arg) {
                     println!("{arg} is a shell builtin");
                 }else {
+                    for dir in path_var.split(":") {
+                        let full_path = Path::new(dir).join(arg);
+                        let full_path_str = full_path.to_str().unwrap();
+ 
+                        if full_path.exists() && full_path.is_executable() {
+                            println!("{arg} is {full_path_str}");
+                            break;
+                        }
+
+                    }
                     println!("{arg}: not found");
                 }
             }
