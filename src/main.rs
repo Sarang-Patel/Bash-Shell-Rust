@@ -22,6 +22,7 @@ fn read_input(prompt: &str) -> String {
 fn main() {
         
     let path_var = env::var("PATH").expect("PATH not set");
+    let separator = if cfg!(windows) { ";" } else { ":" };
 
     loop {
         let input = read_input("$");
@@ -39,17 +40,11 @@ fn main() {
                 if builtin.contains(arg) {
                     println!("{arg} is a shell builtin");
                 }else {
-                    for dir in path_var.split(":") {
-                        let full_path = Path::new(dir).join(arg);
-                        let full_path_str = full_path.to_str().unwrap();
- 
-                        if full_path.exists() && full_path.is_executable() {
-                            println!("{arg} is {full_path_str}");
-                            break;
-                        }
-
+                    if let Some(full_path) = path_var.split(separator).map(|dir| Path::new(dir).join(arg)).find(|p| p.exists() && p.is_executable()) {
+                        println!("{arg} is {}", full_path.display());
+                    }else{
+                        println!("{arg}: not found");
                     }
-                    println!("{arg}: not found");
                 }
             }
             _ => println!("{cmd}: command not found"),
