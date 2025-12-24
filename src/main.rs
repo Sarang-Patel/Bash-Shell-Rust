@@ -33,6 +33,7 @@ fn tokenize_input(input : String) -> Vec<String> {
             backslash = false;
             continue;
         }
+        
         match c {
             '\\' => {
                 backslash = true;
