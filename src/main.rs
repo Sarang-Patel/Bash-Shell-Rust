@@ -22,19 +22,23 @@ fn read_input(prompt: &str) -> String {
 
 fn tokenize_input(input : String) -> Vec<String> {
     let mut tokens : Vec<String> = Vec::new();
-    let mut in_quotes = false;
+    let mut in_single_quotes = false;
+    let mut in_double_quotes = false;
     let mut curr = String::new();
 
     for c in input.chars() {
         match c {
-            '\'' => {
-                in_quotes = !in_quotes;
+            '\'' if !in_double_quotes => {
+                in_single_quotes = !in_single_quotes;
             },
-            ' ' if !in_quotes => {
+            ' ' if !in_single_quotes && !in_double_quotes => {
                 if !curr.is_empty() {
                     tokens.push(curr.clone());
                     curr.clear();
                 }
+            },
+            '\"' if !in_single_quotes => {
+                in_double_quotes = !in_double_quotes;
             },
             _ => curr.push(c),
         }
