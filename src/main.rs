@@ -20,6 +20,33 @@ fn read_input(prompt: &str) -> String {
 
 }
 
+fn tokenize_input(input : String) -> Vec<String> {
+    let mut tokens : Vec<String> = Vec::new();
+    let mut in_quotes = false;
+    let mut curr = String::new();
+
+    for c in input.chars() {
+        match c {
+            '\'' => {
+                in_quotes = !in_quotes;
+            },
+            ' ' if !in_quotes => {
+                if !curr.is_empty() {
+                    tokens.push(curr.clone());
+                    curr.clear();
+                }
+            },
+            _ => curr.push(c),
+        }
+    } 
+
+    if !curr.is_empty() {
+        tokens.push(curr.clone());
+    }
+
+    tokens
+}
+
 fn main() {
         
     let separator = if cfg!(windows) { ";" } else { ":" };
@@ -29,10 +56,12 @@ fn main() {
         let path_var = env::var("PATH").unwrap_or_default();
         let input = read_input("$");
 
-        let parts: Vec<&str> = input.split_whitespace().collect();
+        let tokens = tokenize_input(input);
 
-        let cmd: String = parts.get(0).unwrap_or(&"").to_string();
-        let args: Vec<String> = parts.iter().skip(1).map(|s| s.to_string()).collect();
+        let cmd: String = tokens.get(0).cloned().unwrap_or_default();
+        // let mut args: Vec<String> = parts.iter().skip(1).map(|s| s.to_string()).collect();
+
+        let args = tokens.into_iter().skip(1).collect::<Vec<_>>();
 
         if builtin.contains(&cmd) {
             match cmd.as_str() {
