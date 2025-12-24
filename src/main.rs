@@ -33,9 +33,9 @@ fn tokenize_input(input : String) -> Vec<String> {
             backslash = false;
             continue;
         }
-        
+
         match c {
-            '\\' => {
+            '\\' if !in_single_quotes && !in_double_quotes => {
                 backslash = true;
             },
             '\'' if !in_double_quotes => {
