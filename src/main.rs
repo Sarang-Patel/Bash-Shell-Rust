@@ -24,10 +24,19 @@ fn tokenize_input(input : String) -> Vec<String> {
     let mut tokens : Vec<String> = Vec::new();
     let mut in_single_quotes = false;
     let mut in_double_quotes = false;
+    let mut backslash = false;
     let mut curr = String::new();
 
     for c in input.chars() {
+        if backslash {
+            curr.push(c);
+            backslash = false;
+            continue;
+        }
         match c {
+            '\\' => {
+                backslash = true;
+            },
             '\'' if !in_double_quotes => {
                 in_single_quotes = !in_single_quotes;
             },
