@@ -29,13 +29,20 @@ fn tokenize_input(input : String) -> Vec<String> {
 
     for c in input.chars() {
         if backslash {
-            curr.push(c);
-            backslash = false;
-            continue;
+            if !in_double_quotes || (in_double_quotes && (c == '\\' || c== '\"') ) {
+                curr.push(c);
+                backslash = false;
+                continue;
+            }else{
+                curr.push('\\');
+                curr.push(c);
+                backslash = false;
+                continue;
+            }
         }
 
         match c {
-            '\\' if !in_single_quotes && !in_double_quotes => {
+            '\\' if !in_single_quotes => {
                 backslash = true;
             },
             '\'' if !in_double_quotes => {
@@ -47,7 +54,7 @@ fn tokenize_input(input : String) -> Vec<String> {
                     curr.clear();
                 }
             },
-            '\"' if !in_single_quotes => {
+            '\"' if !in_single_quotes && !backslash => {
                 in_double_quotes = !in_double_quotes;
             },
             _ => curr.push(c),
