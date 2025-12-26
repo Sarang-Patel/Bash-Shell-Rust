@@ -78,8 +78,9 @@ fn main() {
 
         let redirection_symbol1 = ">".to_string();
         let redirection_symbol2 = "1>".to_string();
+        let redirection_symbol3 = "2>".to_string();
 
-        let redirect_index = tokens.iter().position(|r| r == &redirection_symbol1 || r == &redirection_symbol2);
+        let redirect_index = tokens.iter().position(|r| r == &redirection_symbol1 || r == &redirection_symbol2 || r == &redirection_symbol3);
         let mut redirection_part = Vec::new(); 
 
         match redirect_index {
@@ -89,11 +90,58 @@ fn main() {
             None => {},
         }
 
-        let mut redirection_target = "".to_string();
+        let mut redirection_target: Option<&str> = None;
+        let mut redirection_error_target: Option<&str> = None;
 
         if redirection_part.len() > 1 {
-            redirection_target = redirection_part.split_off(1)[0].to_string();
+            for (i, c) in redirection_part.iter().enumerate() {
+                if c == &redirection_symbol1 || c == &redirection_symbol2  {
+                    if let Some(value) = redirection_part.get(i + 1) {
+                        redirection_target = Some(value);
+                    } else {
+                        println!("Error: no file provided after redirection");
+                    }
+                }
+
+                if c == &redirection_symbol3 {
+                    if let Some(value) = redirection_part.get(i + 1) {
+                        redirection_error_target = Some(value);
+                    } else {
+                        println!("Error: no file provided after redirection");
+                    }
+                }
+            }
         }
+
+        let stdout_file = redirection_target
+            .map(|dest| File::create(dest).expect("failed to create file"));
+
+        let stderr_file = redirection_error_target
+            .map(|dest| File::create(dest).expect("failed to create file"));
+
+
+        let stdout = match &stdout_file {
+            Some(file) => Stdio::from(file.try_clone().unwrap()),
+            None => Stdio::inherit(),
+        };
+
+        let stderr = match &stderr_file {
+            Some(file) => Stdio::from(file.try_clone().unwrap()),
+            None => Stdio::inherit(),
+        };
+
+
+        let mut builtin_out: Box<dyn Write> = match &stdout_file {
+            Some(file) => Box::new(file.try_clone().unwrap()),
+            None => Box::new(io::stdout()),
+        };
+
+        let mut builtin_err: Box<dyn Write> = match &stderr_file {
+            Some(file) => Box::new(file.try_clone().unwrap()),
+            None => Box::new(io::stderr()),
+        };
+
+
 
         let cmd: String = tokens.get(0).cloned().unwrap_or_default();
         let args = tokens.into_iter().skip(1).collect::<Vec<_>>();
@@ -102,13 +150,15 @@ fn main() {
         if builtin.contains(&cmd) {
             match cmd.as_str() {
                 "exit" => break,
-                "echo" => if redirection_target != "".to_string() {
-                    let mut file = File::create(redirection_target).expect("failed to create file");
+                "echo" => {
+                    if args.first().map(|s| s == "-z").unwrap_or(false) {
+                        builtin_err.write_all(b"echo: invalid option '-z'\n").unwrap();
+                        continue;
+                    }
+
                     let mut text = args.join(" ");
-                    text += "\n";
-                    file.write_all(text.as_bytes()).expect("failed to write");
-                }else{
-                    println!("{}", args.join(" "))
+                    text.push('\n');
+                    builtin_out.write_all(text.as_bytes()).unwrap();
                 },
                 "type" => {
                     if args.is_empty() {
@@ -167,20 +217,9 @@ fn main() {
             if let Some(_full_path) = path_var.split(separator).map(|dir| Path::new(dir).join(cmd.to_string()))
             .find(|p| p.exists() && p.is_executable()) {
 
-                if redirection_target != "".to_string() {
+                let mut output = Command::new(cmd).args(&args).stdout(stdout).stderr(stderr).spawn().expect("Failed to execute process");
 
-                    let file = File::create(redirection_target).expect("failed to create file");
-                    let mut running_cmd = Command::new(cmd).args(&args).stdout(file).stderr(Stdio::inherit()).spawn().expect("Failed to execute process");
-
-                    running_cmd.wait().expect("failed to finish");
-
-                }else{
-
-                    let mut output = Command::new(cmd).args(&args).stdout(Stdio::inherit()).stderr(Stdio::inherit()).spawn().unwrap();
-
-                    output.wait().expect("failed to finish process");
-                }
-
+                output.wait().expect("failed to finish process");
 
             }else{
                 println!("{cmd}: command not found");
