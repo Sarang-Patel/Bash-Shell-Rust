@@ -164,19 +164,19 @@ fn main() {
                 _ => println!("{cmd}: command not found"),
             }
         }else {
-            if let Some(full_path) = path_var.split(separator).map(|dir| Path::new(dir).join(cmd.to_string()))
+            if let Some(_full_path) = path_var.split(separator).map(|dir| Path::new(dir).join(cmd.to_string()))
             .find(|p| p.exists() && p.is_executable()) {
 
                 if redirection_target != "".to_string() {
 
                     let file = File::create(redirection_target).expect("failed to create file");
-                    let mut running_cmd = Command::new(full_path).args(&args).stdout(file).stderr(Stdio::inherit()).spawn().expect("Failed to execute process");
+                    let mut running_cmd = Command::new(cmd).args(&args).stdout(file).stderr(Stdio::inherit()).spawn().expect("Failed to execute process");
 
                     running_cmd.wait().expect("failed to finish");
 
                 }else{
 
-                    let mut output = Command::new(full_path).args(&args).stdout(Stdio::inherit()).stderr(Stdio::inherit()).spawn().unwrap();
+                    let mut output = Command::new(cmd).args(&args).stdout(Stdio::inherit()).stderr(Stdio::inherit()).spawn().unwrap();
 
                     output.wait().expect("failed to finish process");
                 }
