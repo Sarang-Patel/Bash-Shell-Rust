@@ -104,7 +104,9 @@ fn main() {
                 "exit" => break,
                 "echo" => if redirection_target != "".to_string() {
                     let mut file = File::create(redirection_target).expect("failed to create file");
-                    file.write_all(args.join(" ").as_bytes()).expect("failed to write");
+                    let mut text = args.join(" ");
+                    text += "\n";
+                    file.write_all(text.as_bytes()).expect("failed to write");
                 }else{
                     println!("{}", args.join(" "))
                 },
