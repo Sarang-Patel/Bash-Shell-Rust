@@ -6,6 +6,7 @@ use std::{env};
 use std::path::{Path, PathBuf};
 use is_executable::IsExecutable;
 use std::process::{Command, Stdio};
+use std::fs::OpenOptions;
 
 
 fn read_input(prompt: &str) -> String {
@@ -65,6 +66,20 @@ fn tokenize_input(input : String) -> Vec<String> {
     tokens
 }
 
+fn open_out_file(dest: &str, append : bool) -> std::io::Result<File> {
+    let mut opts = OpenOptions::new();
+
+    opts.write(true).create(true);
+
+    if append {
+        opts.append(true);
+    }else{
+        opts.truncate(true);
+    }
+
+    opts.open(dest)
+}
+
 fn main() {
         
     let separator = if cfg!(windows) { ";" } else { ":" };
@@ -76,12 +91,26 @@ fn main() {
 
         let mut tokens = tokenize_input(input);
 
-        let redirection_symbol1 = ">".to_string();
-        let redirection_symbol2 = "1>".to_string();
-        let redirection_symbol3 = "2>".to_string();
+        let write_redirection_symbol1 = ">".to_string();
+        let write_redirection_symbol2 = "1>".to_string();
+        let err_redirection_symbol = "2>".to_string();
+        let append_redirection_symbol1 = ">>".to_string();
+        let append_redirection_symbol2 = "1>>".to_string();
+        let err_append_symbol = "2>>".to_string();
 
-        let redirect_index = tokens.iter().position(|r| r == &redirection_symbol1 || r == &redirection_symbol2 || r == &redirection_symbol3);
+        let redirect_index = tokens.iter().position(|r|
+            r == &write_redirection_symbol1 ||
+            r == &write_redirection_symbol2 ||
+            r == &err_redirection_symbol ||
+            r == &append_redirection_symbol1 ||
+            r == &append_redirection_symbol2 ||
+            r == &err_append_symbol
+        );
+
         let mut redirection_part = Vec::new(); 
+
+        let mut out_append : bool = false;
+        let mut err_append : bool = false;
 
         match redirect_index {
             Some(index) => {
@@ -95,29 +124,33 @@ fn main() {
 
         if redirection_part.len() > 1 {
             for (i, c) in redirection_part.iter().enumerate() {
-                if c == &redirection_symbol1 || c == &redirection_symbol2  {
-                    if let Some(value) = redirection_part.get(i + 1) {
-                        redirection_target = Some(value);
-                    } else {
-                        println!("Error: no file provided after redirection");
+                match c.as_str() {
+                    ">" | "1>" => {
+                        redirection_target = redirection_part.get(i + 1).map(|s| s.as_str());
+                        out_append = false;
                     }
-                }
-
-                if c == &redirection_symbol3 {
-                    if let Some(value) = redirection_part.get(i + 1) {
-                        redirection_error_target = Some(value);
-                    } else {
-                        println!("Error: no file provided after redirection");
+                     ">>" | "1>>" => {
+                        redirection_target = redirection_part.get(i + 1).map(|s| s.as_str());
+                        out_append = true;
                     }
+                    "2>" => {
+                        redirection_error_target = redirection_part.get(i + 1).map(|s| s.as_str());
+                        err_append = false;
+                    }
+                    "2>>" => {
+                        redirection_error_target = redirection_part.get(i + 1).map(|s| s.as_str());
+                        err_append = true;
+                    }
+                    _ => {}
                 }
             }
         }
 
         let stdout_file = redirection_target
-            .map(|dest| File::create(dest).expect("failed to create file"));
+            .map(|dest| open_out_file(dest, out_append).expect("failed to open stdout file"));
 
         let stderr_file = redirection_error_target
-            .map(|dest| File::create(dest).expect("failed to create file"));
+            .map(|dest| open_out_file(dest, err_append).expect("failed to open stderr file"));
 
 
         let stdout = match &stdout_file {
