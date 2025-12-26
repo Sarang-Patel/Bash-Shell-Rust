@@ -1,10 +1,11 @@
+use std::fs::File;
 #[allow(unused_imports)]
 use std::io::{self, Write};
 use std::collections::HashSet;
 use std::{env};
 use std::path::{Path, PathBuf};
 use is_executable::IsExecutable;
-use std::process::Command;
+use std::process::{Command, Stdio};
 
 
 fn read_input(prompt: &str) -> String {
@@ -29,16 +30,12 @@ fn tokenize_input(input : String) -> Vec<String> {
 
     for c in input.chars() {
         if backslash {
-            if !in_double_quotes || (in_double_quotes && (c == '\\' || c== '\"') ) {
-                curr.push(c);
-                backslash = false;
-                continue;
-            }else{
+            if in_double_quotes && c != '\\' && c != '"' {
                 curr.push('\\');
-                curr.push(c);
-                backslash = false;
-                continue;
             }
+            curr.push(c);
+            backslash = false;
+            continue;
         }
 
         match c {
@@ -77,17 +74,40 @@ fn main() {
         let path_var = env::var("PATH").unwrap_or_default();
         let input = read_input("$");
 
-        let tokens = tokenize_input(input);
+        let mut tokens = tokenize_input(input);
+
+        let redirection_symbol1 = ">".to_string();
+        let redirection_symbol2 = "1>".to_string();
+
+        let redirect_index = tokens.iter().position(|r| r == &redirection_symbol1 || r == &redirection_symbol2);
+        let mut redirection_part = Vec::new(); 
+
+        match redirect_index {
+            Some(index) => {
+                redirection_part = tokens.split_off(index);
+            },
+            None => {},
+        }
+
+        let mut redirection_target = "".to_string();
+
+        if redirection_part.len() > 1 {
+            redirection_target = redirection_part.split_off(1)[0].to_string();
+        }
 
         let cmd: String = tokens.get(0).cloned().unwrap_or_default();
-        // let mut args: Vec<String> = parts.iter().skip(1).map(|s| s.to_string()).collect();
-
         let args = tokens.into_iter().skip(1).collect::<Vec<_>>();
+
 
         if builtin.contains(&cmd) {
             match cmd.as_str() {
                 "exit" => break,
-                "echo" => println!("{}", args.join(" ")),
+                "echo" => if redirection_target != "".to_string() {
+                    let mut file = File::create(redirection_target).expect("failed to create file");
+                    file.write_all(args.join(" ").as_bytes()).expect("failed to write");
+                }else{
+                    println!("{}", args.join(" "))
+                },
                 "type" => {
                     if args.is_empty() {
                         println!("type: missing operand");
@@ -142,20 +162,23 @@ fn main() {
                 _ => println!("{cmd}: command not found"),
             }
         }else {
-            if let Some(_full_path) = path_var.split(separator).map(|dir| Path::new(dir).join(cmd.to_string()))
+            if let Some(full_path) = path_var.split(separator).map(|dir| Path::new(dir).join(cmd.to_string()))
             .find(|p| p.exists() && p.is_executable()) {
-                let output = Command::new(cmd).args(&args).output().expect("Failed to execute process");
 
-                let stdout = str::from_utf8(&output.stdout).unwrap();
-                let stderr = str::from_utf8(&output.stderr).unwrap();
+                if redirection_target != "".to_string() {
 
-                if !stdout.is_empty() {
-                    print!("{}", stdout);
+                    let file = File::create(redirection_target).expect("failed to create file");
+                    let mut running_cmd = Command::new(full_path).args(&args).stdout(file).stderr(Stdio::inherit()).spawn().expect("Failed to execute process");
+
+                    running_cmd.wait().expect("failed to finish");
+
+                }else{
+
+                    let mut output = Command::new(full_path).args(&args).stdout(Stdio::inherit()).stderr(Stdio::inherit()).spawn().unwrap();
+
+                    output.wait().expect("failed to finish process");
                 }
 
-                if !stderr.is_empty() {
-                    eprint!("{}", stderr);
-                }
 
             }else{
                 println!("{cmd}: command not found");
