@@ -41,6 +41,30 @@ impl Completer for MyHelper {
             }
         }
 
+        if result.is_empty() {
+            let path_var = env::var("PATH").unwrap_or_default();
+            let separator = if cfg!(windows) { ";" } else { ":" };
+            let mut seen = HashSet::new();
+
+            for dir in path_var.split(separator) {
+                let dir_path = Path::new(dir);
+
+                if let Ok(entries) = dir_path.read_dir() {
+                    for entry in entries.flatten() {
+                        let path = entry.path();
+
+                        if path.is_file() && let Some(name) = path.file_name().and_then(|f| f.to_str()) {
+                            if name.starts_with(&line[..pos]) && path.is_executable() {
+                                if seen.insert(name.to_string()){
+                                    result.push(name.to_string());
+                                }
+                            }
+                        }
+                    }
+                }
+            }
+        }
+
         Ok((0, result))
     }
 }
@@ -153,20 +177,8 @@ fn main() -> Result<()> {
 
         let mut tokens = tokenize_input(input);
 
-        let write_redirection_symbol1 = ">".to_string();
-        let write_redirection_symbol2 = "1>".to_string();
-        let err_redirection_symbol = "2>".to_string();
-        let append_redirection_symbol1 = ">>".to_string();
-        let append_redirection_symbol2 = "1>>".to_string();
-        let err_append_symbol = "2>>".to_string();
-
         let redirect_index = tokens.iter().position(|r|
-            r == &write_redirection_symbol1 ||
-            r == &write_redirection_symbol2 ||
-            r == &err_redirection_symbol ||
-            r == &append_redirection_symbol1 ||
-            r == &append_redirection_symbol2 ||
-            r == &err_append_symbol
+            r == &">" || r == &"1>" || r == &"2>" || r == &">>" || r == &"1>>" || r == &"2>>"
         );
 
         let mut redirection_part = Vec::new(); 
