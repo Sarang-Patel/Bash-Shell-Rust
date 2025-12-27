@@ -1,5 +1,4 @@
 use std::fs::File;
-#[allow(unused_imports)]
 use std::io::{self, Write};
 use std::collections::HashSet;
 use std::{env};
@@ -7,20 +6,51 @@ use std::path::{Path, PathBuf};
 use is_executable::IsExecutable;
 use std::process::{Command, Stdio};
 use std::fs::OpenOptions;
+use rustyline::error::ReadlineError;
+use rustyline::{Editor, Result, completion::Completer};
 
+// fn read_input(prompt: &str) -> String {
+//     let mut input  = String::new();
+//     let mut stdout = io::stdout();
+//     print!("{prompt} ");
+//     stdout.flush().unwrap();
+//     io::stdin().read_line(&mut input).expect("Failed to read line");
+//     input.trim().to_string()
+// }
 
-fn read_input(prompt: &str) -> String {
-    let mut input  = String::new();
-    let mut stdout = io::stdout();
-
-    print!("{prompt} ");
-    stdout.flush().unwrap();
-
-    io::stdin().read_line(&mut input).expect("Failed to read line");
-
-    input.trim().to_string()
-
+struct MyHelper {
+    builtins: Vec<String>
 }
+
+impl rustyline::Helper for MyHelper {}
+
+impl Completer for MyHelper {
+    type Candidate = String;
+
+    fn complete(
+        &self,
+        line: &str,
+        pos: usize,
+        _ctx: &rustyline::Context<'_>,
+    ) -> rustyline::Result<(usize, Vec<Self::Candidate>)> {
+        let mut result : Vec<String> = Vec::new();
+
+        for word in self.builtins.iter() {
+            if word.starts_with(&line[..pos]) {
+                result.push(word.clone());
+            }
+        }
+
+        Ok((0, result))
+    }
+}
+
+impl rustyline::hint::Hinter for MyHelper { 
+    type Hint = &'static str;
+}
+
+impl rustyline::highlight::Highlighter for MyHelper {}
+impl rustyline::validate::Validator for MyHelper {}
 
 fn tokenize_input(input : String) -> Vec<String> {
     let mut tokens : Vec<String> = Vec::new();
@@ -80,14 +110,46 @@ fn open_out_file(dest: &str, append : bool) -> std::io::Result<File> {
     opts.open(dest)
 }
 
-fn main() {
-        
+fn main() -> Result<()> {
+
+    let helper = MyHelper {
+        builtins: vec![
+            "echo".to_string(),
+            "exit".to_string(),
+            "pwd".to_string(),
+            "cd".to_string(),
+            "type".to_string(),
+        ],
+    };
+
+    let mut rl : Editor<MyHelper, _> = Editor::new()?;
+    rl.set_helper(Some(helper));
+    // #[cfg(feature = "with-file-history")]
+    // if rl.load_history("history.txt").is_err() {
+    //     println!("No previous history.");
+    // }
+
     let separator = if cfg!(windows) { ";" } else { ":" };
     let builtin: HashSet<String> = ["exit", "echo", "type", "pwd", "cd"].iter().map(|s| s.to_string()).collect();
     
     loop {
         let path_var = env::var("PATH").unwrap_or_default();
-        let input = read_input("$");
+        let input = match rl.readline("$ ") {
+            Ok(line) => {
+                rl.add_history_entry(line.as_str())?;
+                line
+            },
+            Err(ReadlineError::Interrupted) => {
+                continue
+            },
+            Err(ReadlineError::Eof) => {
+                break
+            },
+            Err(err) => {
+                println!("Error: {:?}", err);
+                break
+            }
+        };
 
         let mut tokens = tokenize_input(input);
 
@@ -260,5 +322,10 @@ fn main() {
         }
 
     }
+
+    // #[cfg(feature = "with-file-history")]
+    // rl.save_history("history.txt");
+
+    Ok(())
 
 }
