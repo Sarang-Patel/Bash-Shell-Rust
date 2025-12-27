@@ -56,7 +56,7 @@ impl Completer for MyHelper {
                         if path.is_file() && let Some(name) = path.file_name().and_then(|f| f.to_str()) {
                             if name.starts_with(&line[..pos]) && path.is_executable() {
                                 if seen.insert(name.to_string()){
-                                    result.push(name.to_string());
+                                    result.push(format!("{} ", name));
                                 }
                             }
                         }
