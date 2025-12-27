@@ -37,7 +37,7 @@ impl Completer for MyHelper {
 
         for word in self.builtins.iter() {
             if word.starts_with(&line[..pos]) {
-                result.push(word.clone());
+                result.push(format!("{} ", word));
             }
         }
 
