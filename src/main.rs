@@ -12,21 +12,53 @@ use std::fs::OpenOptions;
 use rustyline::error::ReadlineError;
 use rustyline::{Editor, Result, completion::Completer};
 
-// fn read_input(prompt: &str) -> String {
-//     let mut input  = String::new();
-//     let mut stdout = io::stdout();
-//     print!("{prompt} ");
-//     stdout.flush().unwrap();
-//     io::stdin().read_line(&mut input).expect("Failed to read line");
-//     input.trim().to_string()
-// }
-
 struct MyHelper {
     builtins: HashSet<String>,
-    last_result: RefCell<Vec<String>>, 
-    last_line: RefCell<String>,        
-    last_pos: RefCell<usize>,          
+    last_prefix: RefCell<String>,
+    last_matches: RefCell<Vec<String>>,
+    tab_count: RefCell<u8>,         
 }
+
+
+impl MyHelper {
+    fn find_matches(&self, prefix: &str) -> Vec<String> {
+        let mut result = Vec::new();
+        let mut seen: HashSet<String> = HashSet::new();
+
+        // builtins
+        for word in &self.builtins {
+            if word.starts_with(prefix) && seen.insert(word.to_string()) {
+                result.push(word.clone());
+            }
+        }
+
+        // executables in PATH
+        let path_var = env::var("PATH").unwrap_or_default();
+        let separator = if cfg!(windows) { ";" } else { ":" };
+
+        for dir in path_var.split(separator) {
+            if let Ok(entries) = Path::new(dir).read_dir() {
+                for entry in entries.flatten() {
+                    let path = entry.path();
+                    if path.is_file()
+                        && path.is_executable()
+                        && let Some(name) = path.file_name().and_then(|n| n.to_str())
+                        && name.starts_with(prefix)
+                    {
+                        if seen.insert(name.to_string()) {
+                            result.push(name.to_string());
+                        }
+                    }
+                }
+            }
+        }
+
+        result.sort();
+        result
+    }
+}
+
+
 
 impl rustyline::Helper for MyHelper {}
 
@@ -39,73 +71,55 @@ impl Completer for MyHelper {
         pos: usize,
         _ctx: &rustyline::Context<'_>,
     ) -> rustyline::Result<(usize, Vec<Self::Candidate>)> {
+        let prefix = &line[..pos];
 
-        let repeated_tab = {
-            let last_line = self.last_line.borrow();
-            let last_pos  = self.last_pos.borrow();
-            *last_line == line && *last_pos == pos
+         let mut last_prefix = self.last_prefix.borrow_mut();
+        let mut last_matches = self.last_matches.borrow_mut();
+        let mut tab_count = self.tab_count.borrow_mut();
+
+        // Check if prefix has changed
+        let matches = if *last_prefix == prefix {
+            // Use cached matches
+            last_matches.clone()
+        } else {
+            // Compute new matches
+            let new_matches = self.find_matches(prefix);
+            *last_prefix = prefix.to_string();
+            *last_matches = new_matches.clone();
+            *tab_count = 0; // reset tab count on new prefix
+            new_matches
         };
 
-        if repeated_tab {
-            // reuse cached result
-            let cached = self.last_result.borrow().clone();
-            return Ok((0, cached));
-        }
+        if matches.len() > 1 {
+            *tab_count += 1;
 
-        let mut result : Vec<String> = Vec::new();
-        let mut seen = HashSet::new();
+            if *tab_count == 1 {
+                // FIRST TAB → ring bell
+                print!("\x07");
+                return Ok((0, Vec::new()));
+            }
 
-        for word in self.builtins.iter() {
-            if word.starts_with(&line[..pos]) {
-                if seen.insert(word.to_string()){
-                    result.push(format!("{} ", word));
-                }
+            if *tab_count == 2 {
+                println!();
+                println!("{}", matches.join("  "));
+
+                // Reprint prompt + original input
+                print!("$ {}", prefix);
+                io::stdout().flush().unwrap();
+
+                return Ok((0, Vec::new()));
             }
         }
 
-        
-        let path_var = env::var("PATH").unwrap_or_default();
-        let separator = if cfg!(windows) { ";" } else { ":" };
-
-        for dir in path_var.split(separator) {
-            let dir_path = Path::new(dir);
-
-            if let Ok(entries) = dir_path.read_dir() {
-                for entry in entries.flatten() {
-
-                    let path = entry.path();
-                    if path.is_file() && let Some(name) = path.file_name().and_then(|f| f.to_str()) {
-                        if name.starts_with(&line[..pos]) && path.is_executable() {
-
-                            if seen.insert(name.to_string()){
-                                result.push(format!("{} ", name));
-                            }
-                        }
-                    }
-                }
-            }
-        }
-        
-        // let repeated_tab = {
-        //     let last_line = self.last_line.borrow();
-        //     let last_pos  = self.last_pos.borrow();
-        //     *last_line == line && *last_pos == pos
-        // };
-        result.sort();
-        
-        *self.last_line.borrow_mut() = line.to_string();
-        *self.last_pos.borrow_mut() = pos;
-        *self.last_result.borrow_mut() = result.clone();
-
-        if result.len() > 1 && !repeated_tab {
-            return Ok((0, vec![]));
+        // Single match → normal completion
+        if matches.len() == 1 {
+            return Ok((0, vec![format!("{} ", matches[0])]));
         }
 
-
-        Ok((0, result))
-
+        Ok((0, Vec::new()))
     }
 }
+
 
 impl rustyline::hint::Hinter for MyHelper { 
     type Hint = &'static str;
@@ -113,6 +127,8 @@ impl rustyline::hint::Hinter for MyHelper {
 
 impl rustyline::highlight::Highlighter for MyHelper {}
 impl rustyline::validate::Validator for MyHelper {}
+
+
 
 fn tokenize_input(input : String) -> Vec<String> {
     let mut tokens : Vec<String> = Vec::new();
@@ -179,9 +195,9 @@ fn main() -> Result<()> {
 
     let helper = MyHelper {
         builtins: builtin.clone(),
-        last_result: RefCell::new(Vec::new()),
-        last_line: RefCell::new(String::new()),
-        last_pos: RefCell::new(0),
+        last_prefix: RefCell::new(String::new()),
+    last_matches: RefCell::new(Vec::new()),
+    tab_count: RefCell::new(0),
     };
 
 
