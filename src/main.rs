@@ -1,9 +1,12 @@
+use std::cell::RefCell;
 use std::fs::File;
 use std::io::{self, Write};
 use std::collections::HashSet;
 use std::{env};
 use std::path::{Path, PathBuf};
 use is_executable::IsExecutable;
+use rustyline::CompletionType;
+use rustyline::config::Configurer;
 use std::process::{Command, Stdio};
 use std::fs::OpenOptions;
 use rustyline::error::ReadlineError;
@@ -19,7 +22,10 @@ use rustyline::{Editor, Result, completion::Completer};
 // }
 
 struct MyHelper {
-    builtins: Vec<String>
+    builtins: HashSet<String>,
+    last_result: RefCell<Vec<String>>, 
+    last_line: RefCell<String>,        
+    last_pos: RefCell<usize>,          
 }
 
 impl rustyline::Helper for MyHelper {}
@@ -33,39 +39,71 @@ impl Completer for MyHelper {
         pos: usize,
         _ctx: &rustyline::Context<'_>,
     ) -> rustyline::Result<(usize, Vec<Self::Candidate>)> {
+
+        let repeated_tab = {
+            let last_line = self.last_line.borrow();
+            let last_pos  = self.last_pos.borrow();
+            *last_line == line && *last_pos == pos
+        };
+
+        if repeated_tab {
+            // reuse cached result
+            let cached = self.last_result.borrow().clone();
+            return Ok((0, cached));
+        }
+
         let mut result : Vec<String> = Vec::new();
+        let mut seen = HashSet::new();
 
         for word in self.builtins.iter() {
             if word.starts_with(&line[..pos]) {
-                result.push(format!("{} ", word));
+                if seen.insert(word.to_string()){
+                    result.push(format!("{} ", word));
+                }
             }
         }
 
-        if result.is_empty() {
-            let path_var = env::var("PATH").unwrap_or_default();
-            let separator = if cfg!(windows) { ";" } else { ":" };
-            let mut seen = HashSet::new();
+        
+        let path_var = env::var("PATH").unwrap_or_default();
+        let separator = if cfg!(windows) { ";" } else { ":" };
 
-            for dir in path_var.split(separator) {
-                let dir_path = Path::new(dir);
+        for dir in path_var.split(separator) {
+            let dir_path = Path::new(dir);
 
-                if let Ok(entries) = dir_path.read_dir() {
-                    for entry in entries.flatten() {
-                        let path = entry.path();
+            if let Ok(entries) = dir_path.read_dir() {
+                for entry in entries.flatten() {
 
-                        if path.is_file() && let Some(name) = path.file_name().and_then(|f| f.to_str()) {
-                            if name.starts_with(&line[..pos]) && path.is_executable() {
-                                if seen.insert(name.to_string()){
-                                    result.push(format!("{} ", name));
-                                }
+                    let path = entry.path();
+                    if path.is_file() && let Some(name) = path.file_name().and_then(|f| f.to_str()) {
+                        if name.starts_with(&line[..pos]) && path.is_executable() {
+
+                            if seen.insert(name.to_string()){
+                                result.push(format!("{} ", name));
                             }
                         }
                     }
                 }
             }
         }
+        
+        // let repeated_tab = {
+        //     let last_line = self.last_line.borrow();
+        //     let last_pos  = self.last_pos.borrow();
+        //     *last_line == line && *last_pos == pos
+        // };
+        result.sort();
+        
+        *self.last_line.borrow_mut() = line.to_string();
+        *self.last_pos.borrow_mut() = pos;
+        *self.last_result.borrow_mut() = result.clone();
+
+        if result.len() > 1 && !repeated_tab {
+            return Ok((0, vec![]));
+        }
+
 
         Ok((0, result))
+
     }
 }
 
@@ -136,26 +174,22 @@ fn open_out_file(dest: &str, append : bool) -> std::io::Result<File> {
 
 fn main() -> Result<()> {
 
+    let separator = if cfg!(windows) { ";" } else { ":" };
+    let builtin: HashSet<String> = ["exit", "echo", "type", "pwd", "cd"].iter().map(|s| s.to_string()).collect();
+
     let helper = MyHelper {
-        builtins: vec![
-            "echo".to_string(),
-            "exit".to_string(),
-            "pwd".to_string(),
-            "cd".to_string(),
-            "type".to_string(),
-        ],
+        builtins: builtin.clone(),
+        last_result: RefCell::new(Vec::new()),
+        last_line: RefCell::new(String::new()),
+        last_pos: RefCell::new(0),
     };
+
 
     let mut rl : Editor<MyHelper, _> = Editor::new()?;
     rl.set_helper(Some(helper));
-    // #[cfg(feature = "with-file-history")]
-    // if rl.load_history("history.txt").is_err() {
-    //     println!("No previous history.");
-    // }
 
-    let separator = if cfg!(windows) { ";" } else { ":" };
-    let builtin: HashSet<String> = ["exit", "echo", "type", "pwd", "cd"].iter().map(|s| s.to_string()).collect();
-    
+    rl.set_completion_type(CompletionType::List);
+
     loop {
         let path_var = env::var("PATH").unwrap_or_default();
         let input = match rl.readline("$ ") {
