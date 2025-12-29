@@ -78,14 +78,6 @@ fn longest_common_prefix(words: &[String]) -> String {
     prefix
 }
 
-// fn trim_to_last_separator(word: &str) -> String {
-
-//     match word.rfind(|c| c == '_' || c == '-') {
-//         Some(i) => return word[0..i].to_string(),
-//         None => word.to_string(),
-//     }
-// }
-
 impl rustyline::Helper for MyHelper {}
 
 impl Completer for MyHelper {
@@ -221,15 +213,74 @@ fn open_out_file(dest: &str, append : bool) -> std::io::Result<File> {
     opts.open(dest)
 }
 
-fn clear_history() {
-    let _ = OpenOptions::new()
-        .write(true)
-        .truncate(true) 
-        .open("history.txt");
+fn history_print(history: &Vec<String>, args: &[String]) {
+    let total_lines = history.len();
+
+    
+    let n = args
+        .get(0)                        
+        .and_then(|s| s.parse::<usize>().ok()) 
+        .unwrap_or(total_lines);      
+
+    let start = total_lines.saturating_sub(n);
+    for (i, line) in history[start..].iter().enumerate() {
+        println!("\t{}  {}", start + i + 1, line);
+    }
 }
 
+fn history_write(path: &str, history: &Vec<String>) {
+    if let Ok(mut file) = OpenOptions::new()
+        .write(true)
+        .truncate(true)
+        .create(true)
+        .open(path)
+    {
+        for line in history {
+            let _ = writeln!(file, "{}", line);
+        }
+    }
+}
+
+fn history_read(path: &str, history: &mut Vec<String>) {
+    match fs::read_to_string(path) {
+        Ok(contents) => {
+            *history = contents.lines().map(|s| s.to_string()).collect();
+        }
+        Err(_) => {
+            history.clear();
+        }
+    }
+}
+
+fn history_read_append(path: &str, history: &mut Vec<String>) {
+    if let Ok(contents) = fs::read_to_string(path) {
+        for line in contents.lines() {
+            history.push(line.to_string());
+        }
+    }
+}
+
+fn history_append(path: &str, new_commands: &Vec<String>) {
+    if let Ok(mut file) = OpenOptions::new()
+        .write(true)
+        .append(true)
+        .create(true)
+        .open(path)
+    {
+        for line in new_commands {
+            let _ = writeln!(file, "{}", line);
+        }
+    }
+}
+
+fn record_command(cmd: &str, history: &mut Vec<String>, new_commands: &mut Vec<String>) {
+    history.push(cmd.to_string());
+    new_commands.push(cmd.to_string());
+}
+
+
+
 fn main() -> Result<()> {
-    clear_history();
 
     let separator = if cfg!(windows) { ";" } else { ":" };
     let builtin: HashSet<String> = ["exit", "echo", "type", "pwd", "cd", "history"].iter().map(|s| s.to_string()).collect();
@@ -241,6 +292,9 @@ fn main() -> Result<()> {
         tab_count: RefCell::new(0),
     };
 
+    let mut history: Vec<String> = Vec::new();
+
+    let mut new_commands: Vec<String> = Vec::new();
 
 
     let mut rl : Editor<MyHelper, _> = Editor::new()?;
@@ -267,11 +321,7 @@ fn main() -> Result<()> {
             }
         };
 
-        match open_out_file("history.txt", true) {
-            Ok(mut history_file) => writeln!(history_file, "{}", input)?,
-            Err(_) => println!("failed to open history file"),
-        };
-
+        record_command(&input, &mut history, &mut new_commands);
 
         let mut tokens = tokenize_input(input);
 
@@ -418,29 +468,23 @@ fn main() -> Result<()> {
                     }
                 },
                 "history" => {
-
-                    // let history = fs::read_to_string("history.txt").expect("failed to read history");
-                    // let mut i = 0;
-                    // for line in history.lines() {
-                    //     i+=1;
-                    //     println!("\t{}  {}", i, line);
-                    // }
-
-                    let history = fs::read_to_string("history.txt")
-                        .unwrap_or_default();
-
-                    let lines: Vec<&str> = history.lines().collect();
-                    let total_lines = lines.len();
-
-                    let n = if args.is_empty() {
-                        total_lines
-                    } else {
-                        args[0].parse::<usize>().unwrap_or(total_lines)
-                    };
-
-                    let start = total_lines.saturating_sub(n);
-                    for (i, line) in lines[start..].iter().enumerate() {
-                        println!("\t{}  {}", start + i + 1, line);
+                    if args.is_empty() || args[0].parse::<i32>().is_ok() {
+                        history_print(&history, &args);
+                    }else {
+                        match args[0].as_str() {
+                            "-r" => {
+                                history_read_append(&args[1], &mut history);
+                            },
+                            "-w" => {
+                                history_write(&args[1], &history);
+                            },
+                            "-a" => {
+                                history_append(&args[1], &new_commands);
+                            },
+                            _ => {
+                                println!("invalid flag");
+                            }
+                        }
                     }
                 },
                 _ => println!("{cmd}: command not found"),
