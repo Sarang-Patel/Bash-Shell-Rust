@@ -413,8 +413,8 @@ fn main() -> Result<()> {
                 "exit" => {
                     if let Ok(histfile) = env::var("HISTFILE") {
                         history_write(&histfile, &mut history);
-                        break;
                     }
+                    break;
                 },
                 "echo" => {
                     if args.first().map(|s| s == "-z").unwrap_or(false) {
