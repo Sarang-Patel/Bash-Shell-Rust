@@ -221,8 +221,15 @@ fn open_out_file(dest: &str, append : bool) -> std::io::Result<File> {
     opts.open(dest)
 }
 
-fn main() -> Result<()> {
+fn clear_history() {
+    let _ = OpenOptions::new()
+        .write(true)
+        .truncate(true) 
+        .open("history.txt");
+}
 
+fn main() -> Result<()> {
+    clear_history();
 
     let separator = if cfg!(windows) { ";" } else { ":" };
     let builtin: HashSet<String> = ["exit", "echo", "type", "pwd", "cd", "history"].iter().map(|s| s.to_string()).collect();
