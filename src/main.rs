@@ -25,14 +25,14 @@ impl MyHelper {
         let mut result = Vec::new();
         let mut seen: HashSet<String> = HashSet::new();
 
-        // builtins
+        
         for word in &self.builtins {
             if word.starts_with(prefix) && seen.insert(word.to_string()) {
                 result.push(word.clone());
             }
         }
 
-        // executables in PATH
+        
         let path_var = env::var("PATH").unwrap_or_default();
         let separator = if cfg!(windows) { ";" } else { ":" };
 
@@ -58,7 +58,33 @@ impl MyHelper {
     }
 }
 
+fn longest_common_prefix(words: &[String]) -> String {
+    if words.is_empty() {
+        return String::new();
+    }
 
+    let mut prefix = words[0].clone();
+
+    for word in &words[1..] {
+        while !word.starts_with(&prefix) {
+            prefix.pop();
+
+            if prefix.is_empty() {
+                return String::new();
+            }
+        }
+    }
+
+    prefix
+}
+
+// fn trim_to_last_separator(word: &str) -> String {
+
+//     match word.rfind(|c| c == '_' || c == '-') {
+//         Some(i) => return word[0..i].to_string(),
+//         None => word.to_string(),
+//     }
+// }
 
 impl rustyline::Helper for MyHelper {}
 
@@ -73,28 +99,36 @@ impl Completer for MyHelper {
     ) -> rustyline::Result<(usize, Vec<Self::Candidate>)> {
         let prefix = &line[..pos];
 
-         let mut last_prefix = self.last_prefix.borrow_mut();
+        let mut last_prefix = self.last_prefix.borrow_mut();
         let mut last_matches = self.last_matches.borrow_mut();
         let mut tab_count = self.tab_count.borrow_mut();
 
-        // Check if prefix has changed
+        
         let matches = if *last_prefix == prefix {
-            // Use cached matches
             last_matches.clone()
         } else {
-            // Compute new matches
             let new_matches = self.find_matches(prefix);
             *last_prefix = prefix.to_string();
             *last_matches = new_matches.clone();
-            *tab_count = 0; // reset tab count on new prefix
+            *tab_count = 0; 
             new_matches
         };
 
+        if matches.len() == 1 {
+            return Ok((0, vec![format!("{} ", matches[0])]));
+        }
+
+        let lcf = longest_common_prefix(&matches);
+
+        if lcf != prefix {
+            return Ok((0, vec![format!("{}", lcf)]));
+        }
+
         if matches.len() > 1 {
-            *tab_count += 1;
+            if *tab_count < 2 {*tab_count += 1};
 
             if *tab_count == 1 {
-                // FIRST TAB → ring bell
+                
                 print!("\x07");
                 return Ok((0, Vec::new()));
             }
@@ -103,17 +137,12 @@ impl Completer for MyHelper {
                 println!();
                 println!("{}", matches.join("  "));
 
-                // Reprint prompt + original input
+                
                 print!("$ {}", prefix);
                 io::stdout().flush().unwrap();
 
                 return Ok((0, Vec::new()));
             }
-        }
-
-        // Single match → normal completion
-        if matches.len() == 1 {
-            return Ok((0, vec![format!("{} ", matches[0])]));
         }
 
         Ok((0, Vec::new()))
