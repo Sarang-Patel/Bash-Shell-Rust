@@ -114,6 +114,10 @@ impl Completer for MyHelper {
             new_matches
         };
 
+        if matches.len() == 0 {
+            return Ok((0, vec![]));
+        }
+
         if matches.len() == 1 {
             return Ok((0, vec![format!("{} ", matches[0])]));
         }
