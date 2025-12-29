@@ -270,6 +270,7 @@ fn history_append(path: &str, new_commands: &Vec<String>) {
         for line in new_commands {
             let _ = writeln!(file, "{}", line);
         }
+
     }
 }
 
@@ -480,6 +481,7 @@ fn main() -> Result<()> {
                             },
                             "-a" => {
                                 history_append(&args[1], &new_commands);
+                                new_commands.clear();
                             },
                             _ => {
                                 println!("invalid flag");
