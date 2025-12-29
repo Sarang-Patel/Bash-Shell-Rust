@@ -241,16 +241,16 @@ fn history_write(path: &str, history: &Vec<String>) {
     }
 }
 
-fn history_read(path: &str, history: &mut Vec<String>) {
-    match fs::read_to_string(path) {
-        Ok(contents) => {
-            *history = contents.lines().map(|s| s.to_string()).collect();
-        }
-        Err(_) => {
-            history.clear();
-        }
-    }
-}
+// fn history_read(path: &str, history: &mut Vec<String>) {
+//     match fs::read_to_string(path) {
+//         Ok(contents) => {
+//             *history = contents.lines().map(|s| s.to_string()).collect();
+//         }
+//         Err(_) => {
+//             history.clear();
+//         }
+//     }
+// }
 
 fn history_read_append(path: &str, history: &mut Vec<String>) {
     if let Ok(contents) = fs::read_to_string(path) {
@@ -296,6 +296,10 @@ fn main() -> Result<()> {
     let mut history: Vec<String> = Vec::new();
 
     let mut new_commands: Vec<String> = Vec::new();
+
+    if let Ok(histfile) = env::var("HISTFILE") {
+        history_read_append(&histfile, &mut history);
+    }
 
 
     let mut rl : Editor<MyHelper, _> = Editor::new()?;
@@ -406,7 +410,12 @@ fn main() -> Result<()> {
 
         if builtin.contains(&cmd) {
             match cmd.as_str() {
-                "exit" => break,
+                "exit" => {
+                    if let Ok(histfile) = env::var("HISTFILE") {
+                        history_write(&histfile, &mut history);
+                        break;
+                    }
+                },
                 "echo" => {
                     if args.first().map(|s| s == "-z").unwrap_or(false) {
                         builtin_err.write_all(b"echo: invalid option '-z'\n").unwrap();
