@@ -1,5 +1,5 @@
 use std::cell::RefCell;
-use std::fs::File;
+use std::fs::{self, File};
 use std::io::{self, Write};
 use std::collections::HashSet;
 use std::{env};
@@ -223,15 +223,17 @@ fn open_out_file(dest: &str, append : bool) -> std::io::Result<File> {
 
 fn main() -> Result<()> {
 
+
     let separator = if cfg!(windows) { ";" } else { ":" };
-    let builtin: HashSet<String> = ["exit", "echo", "type", "pwd", "cd"].iter().map(|s| s.to_string()).collect();
+    let builtin: HashSet<String> = ["exit", "echo", "type", "pwd", "cd", "history"].iter().map(|s| s.to_string()).collect();
 
     let helper = MyHelper {
         builtins: builtin.clone(),
         last_prefix: RefCell::new(String::new()),
-    last_matches: RefCell::new(Vec::new()),
-    tab_count: RefCell::new(0),
+        last_matches: RefCell::new(Vec::new()),
+        tab_count: RefCell::new(0),
     };
+
 
 
     let mut rl : Editor<MyHelper, _> = Editor::new()?;
@@ -257,6 +259,12 @@ fn main() -> Result<()> {
                 break
             }
         };
+
+        match open_out_file("history.txt", true) {
+            Ok(mut history_file) => writeln!(history_file, "{}", input)?,
+            Err(_) => println!("failed to open history file"),
+        };
+
 
         let mut tokens = tokenize_input(input);
 
@@ -309,6 +317,7 @@ fn main() -> Result<()> {
         let stderr_file = redirection_error_target
             .map(|dest| open_out_file(dest, err_append).expect("failed to open stderr file"));
 
+        
 
         let stdout = match &stdout_file {
             Some(file) => Stdio::from(file.try_clone().unwrap()),
@@ -332,9 +341,9 @@ fn main() -> Result<()> {
         };
 
 
-
         let cmd: String = tokens.get(0).cloned().unwrap_or_default();
         let args = tokens.into_iter().skip(1).collect::<Vec<_>>();
+
 
 
         if builtin.contains(&cmd) {
@@ -399,6 +408,32 @@ fn main() -> Result<()> {
                         }
                     } else {
                         println!("cd: missing operand");
+                    }
+                },
+                "history" => {
+
+                    // let history = fs::read_to_string("history.txt").expect("failed to read history");
+                    // let mut i = 0;
+                    // for line in history.lines() {
+                    //     i+=1;
+                    //     println!("\t{}  {}", i, line);
+                    // }
+
+                    let history = fs::read_to_string("history.txt")
+                        .unwrap_or_default();
+
+                    let lines: Vec<&str> = history.lines().collect();
+                    let total_lines = lines.len();
+
+                    let n = if args.is_empty() {
+                        total_lines
+                    } else {
+                        args[0].parse::<usize>().unwrap_or(total_lines)
+                    };
+
+                    let start = total_lines.saturating_sub(n);
+                    for (i, line) in lines[start..].iter().enumerate() {
+                        println!("\t{}  {}", start + i + 1, line);
                     }
                 },
                 _ => println!("{cmd}: command not found"),
