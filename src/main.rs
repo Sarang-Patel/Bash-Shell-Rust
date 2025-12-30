@@ -20,7 +20,6 @@ struct MyHelper {
     tab_count: RefCell<u8>,         
 }
 
-
 impl MyHelper {
     fn find_matches(&self, prefix: &str) -> Vec<String> {
         let mut result = Vec::new();
@@ -287,13 +286,15 @@ fn split_commands(tokens : Vec<String>) -> Vec<Vec<String>> {
     commands
 }
 
-
 struct CommandSpec {
     cmd: String,
     args: Vec<String>,
     stdout: Stdio,
-    stderr: Stdio
+    stderr: Stdio,
+    builtin_out: Box<dyn Write>,
+    builtin_err: Box<dyn Write>
 }
+
 
 fn main() -> Result<()> {
 
@@ -351,119 +352,129 @@ fn main() -> Result<()> {
             all_commands.push(command_specfn(command));
         }
 
-        // for command in all_commands {
-        //     println!("{} -> {:?} -> {:?} -> {:?} ", command.cmd, command.args, command.stdout, command.stderr);
-        // }
+        if all_commands.len() == 1 {
+            let CommandSpec {
+                cmd,
+                args,
+                stdout,
+                stderr,
+                mut builtin_out,
+                mut builtin_err,
+            } = all_commands.remove(0);
 
-        execute_pipeline(all_commands);
+            if builtin.contains(&cmd) {
+            match cmd.as_str() {
+                "exit" => {
+                    if let Ok(histfile) = env::var("HISTFILE") {
+                        history_write(&histfile, &mut history);
+                    }
+                    break;
+                },
+                "echo" => {
+                    if args.first().map(|s| s == "-z").unwrap_or(false) {
+                        builtin_err.write_all(b"echo: invalid option '-z'\n").unwrap();
+                        continue;
+                    }
 
+                    let mut text = args.join(" ");
+                    text.push('\n');
+                    builtin_out.write_all(text.as_bytes()).unwrap();
+                },
+                "type" => {
+                    if args.is_empty() {
+                        println!("type: missing operand");
+                        continue;
+                    }
 
+                    for arg in &args {
+                    if builtin.contains(arg) {
+                        println!("{arg} is a shell builtin");
+                    }else {
+                        if let Some(full_path) = path_var.split(separator)
+                        .map(|dir| Path::new(dir).join(arg))
+                        .find(|p| p.exists() && p.is_executable()) {
+                            println!("{arg} is {}", full_path.display());
+                        }else{
+                            println!("{arg}: not found");
+                        }
+                    }}
+                },
+                "pwd" => {
+                    match env::current_dir() {
+                        Ok(path) => {
+                            println!("{}", path.display());
+                        }
+                        Err(e) => {
+                            println!("{}", e);
+                        }
+                    }
+                },
+                "cd" => {
+                    let dir = args.get(0);
 
-        // if builtin.contains(&cmd) {
-        //     match cmd.as_str() {
-        //         "exit" => {
-        //             if let Ok(histfile) = env::var("HISTFILE") {
-        //                 history_write(&histfile, &mut history);
-        //             }
-        //             break;
-        //         },
-        //         "echo" => {
-        //             if args.first().map(|s| s == "-z").unwrap_or(false) {
-        //                 builtin_err.write_all(b"echo: invalid option '-z'\n").unwrap();
-        //                 continue;
-        //             }
+                    let dir = if let Some(arg) = dir {
+                        if arg == "~"  {
+                            env::home_dir()
+                        }else {
+                            Some(PathBuf::from(arg))
+                        }
+                    }else{
+                        None
+                    };
 
-        //             let mut text = args.join(" ");
-        //             text.push('\n');
-        //             builtin_out.write_all(text.as_bytes()).unwrap();
-        //         },
-        //         "type" => {
-        //             if args.is_empty() {
-        //                 println!("type: missing operand");
-        //                 continue;
-        //             }
-
-        //             for arg in &args {
-        //             if builtin.contains(arg) {
-        //                 println!("{arg} is a shell builtin");
-        //             }else {
-        //                 if let Some(full_path) = path_var.split(separator)
-        //                 .map(|dir| Path::new(dir).join(arg))
-        //                 .find(|p| p.exists() && p.is_executable()) {
-        //                     println!("{arg} is {}", full_path.display());
-        //                 }else{
-        //                     println!("{arg}: not found");
-        //                 }
-        //             }}
-        //         },
-        //         "pwd" => {
-        //             match env::current_dir() {
-        //                 Ok(path) => {
-        //                     println!("{}", path.display());
-        //                 }
-        //                 Err(e) => {
-        //                     println!("{}", e);
-        //                 }
-        //             }
-        //         },
-        //         "cd" => {
-        //             let dir = args.get(0);
-
-        //             let dir = if let Some(arg) = dir {
-        //                 if arg == "~"  {
-        //                     env::home_dir()
-        //                 }else {
-        //                     Some(PathBuf::from(arg))
-        //                 }
-        //             }else{
-        //                 None
-        //             };
-
-        //             if let Some(path) = dir {
+                    if let Some(path) = dir {
                         
-        //                 if let Err(_) = env::set_current_dir(&path) {
-        //                     println!("cd: {}: No such file or directory", path.display());
-        //                 }
-        //             } else {
-        //                 println!("cd: missing operand");
-        //             }
-        //         },
-        //         "history" => {
-        //             if args.is_empty() || args[0].parse::<i32>().is_ok() {
-        //                 history_print(&history, &args);
-        //             }else {
-        //                 match args[0].as_str() {
-        //                     "-r" => {
-        //                         history_read_append(&args[1], &mut history);
-        //                     },
-        //                     "-w" => {
-        //                         history_write(&args[1], &history);
-        //                     },
-        //                     "-a" => {
-        //                         history_append(&args[1], &new_commands);
-        //                         new_commands.clear();
-        //                     },
-        //                     _ => {
-        //                         println!("invalid flag");
-        //                     }
-        //                 }
-        //             }
-        //         },
-        //         _ => println!("{cmd}: command not found"),
-        //     }
-        // }else {
-        //     if let Some(_full_path) = path_var.split(separator).map(|dir| Path::new(dir).join(cmd.to_string()))
-        //     .find(|p| p.exists() && p.is_executable()) {
+                        if let Err(_) = env::set_current_dir(&path) {
+                            println!("cd: {}: No such file or directory", path.display());
+                        }
+                    } else {
+                        println!("cd: missing operand");
+                    }
+                },
+                "history" => {
+                    if args.is_empty() || args[0].parse::<i32>().is_ok() {
+                        history_print(&history, &args);
+                    }else {
+                        match args[0].as_str() {
+                            "-r" => {
+                                history_read_append(&args[1], &mut history);
+                            },
+                            "-w" => {
+                                history_write(&args[1], &history);
+                            },
+                            "-a" => {
+                                history_append(&args[1], &new_commands);
+                                new_commands.clear();
+                            },
+                            _ => {
+                                println!("invalid flag");
+                            }
+                        }
+                    }
+                },
+                _ => println!("{cmd}: command not found"),
+            }
+        }else {
+            if let Some(_full_path) = path_var.split(separator).map(|dir| Path::new(dir).join(cmd.to_string()))
+            .find(|p| p.exists() && p.is_executable()) {
 
-        //         let mut output = Command::new(cmd).args(&args).stdout(stdout).stderr(stderr).spawn().expect("Failed to execute process");
+                let mut output = Command::new(cmd).args(args).stdout(stdout).stderr(stderr).spawn().expect("Failed to execute process");
 
-        //         output.wait().expect("failed to finish process");
+                output.wait().expect("failed to finish process");
 
-        //     }else{
-        //         println!("{cmd}: command not found");
-        //     }
-        // }
+            }else{
+                println!("{cmd}: command not found");
+            }
+        }
 
+
+        }else{
+            execute_pipeline(all_commands);
+
+        }
+
+
+        
     }
 
     Ok(())
@@ -533,20 +544,20 @@ fn command_specfn(mut command_tokens: Vec<String>) -> CommandSpec {
         };
 
 
-        // let mut builtin_out: Box<dyn Write> = match &stdout_file {
-        //     Some(file) => Box::new(file.try_clone().unwrap()),
-        //     None => Box::new(io::stdout()),
-        // };
+        let mut builtin_out: Box<dyn Write> = match &stdout_file {
+            Some(file) => Box::new(file.try_clone().unwrap()),
+            None => Box::new(io::stdout()),
+        };
 
-        // let mut builtin_err: Box<dyn Write> = match &stderr_file {
-        //     Some(file) => Box::new(file.try_clone().unwrap()),
-        //     None => Box::new(io::stderr()),
-        // };
+        let mut builtin_err: Box<dyn Write> = match &stderr_file {
+            Some(file) => Box::new(file.try_clone().unwrap()),
+            None => Box::new(io::stderr()),
+        };
 
         let cmd: String = command_tokens.get(0).cloned().unwrap_or_default();
         let args = command_tokens.into_iter().skip(1).collect::<Vec<_>>();
 
-        CommandSpec { cmd, args, stdout, stderr }
+        CommandSpec { cmd, args, stdout, stderr, builtin_out, builtin_err }
 }
 
 fn execute_pipeline(commands: Vec<CommandSpec>) {
