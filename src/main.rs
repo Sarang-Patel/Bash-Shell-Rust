@@ -1,3 +1,4 @@
+#![allow(unused)]
 use std::cell::RefCell;
 use std::fs::{self, File};
 use std::io::{self, Write};
@@ -56,26 +57,6 @@ impl MyHelper {
         result.sort();
         result
     }
-}
-
-fn longest_common_prefix(words: &[String]) -> String {
-    if words.is_empty() {
-        return String::new();
-    }
-
-    let mut prefix = words[0].clone();
-
-    for word in &words[1..] {
-        while !word.starts_with(&prefix) {
-            prefix.pop();
-
-            if prefix.is_empty() {
-                return String::new();
-            }
-        }
-    }
-
-    prefix
 }
 
 impl rustyline::Helper for MyHelper {}
@@ -145,15 +126,32 @@ impl Completer for MyHelper {
     }
 }
 
-
 impl rustyline::hint::Hinter for MyHelper { 
     type Hint = &'static str;
 }
-
 impl rustyline::highlight::Highlighter for MyHelper {}
 impl rustyline::validate::Validator for MyHelper {}
 
 
+fn longest_common_prefix(words: &[String]) -> String {
+    if words.is_empty() {
+        return String::new();
+    }
+
+    let mut prefix = words[0].clone();
+
+    for word in &words[1..] {
+        while !word.starts_with(&prefix) {
+            prefix.pop();
+
+            if prefix.is_empty() {
+                return String::new();
+            }
+        }
+    }
+
+    prefix
+}
 
 fn tokenize_input(input : String) -> Vec<String> {
     let mut tokens : Vec<String> = Vec::new();
@@ -241,17 +239,6 @@ fn history_write(path: &str, history: &Vec<String>) {
     }
 }
 
-// fn history_read(path: &str, history: &mut Vec<String>) {
-//     match fs::read_to_string(path) {
-//         Ok(contents) => {
-//             *history = contents.lines().map(|s| s.to_string()).collect();
-//         }
-//         Err(_) => {
-//             history.clear();
-//         }
-//     }
-// }
-
 fn history_read_append(path: &str, history: &mut Vec<String>) {
     if let Ok(contents) = fs::read_to_string(path) {
         for line in contents.lines() {
@@ -279,7 +266,34 @@ fn record_command(cmd: &str, history: &mut Vec<String>, new_commands: &mut Vec<S
     new_commands.push(cmd.to_string());
 }
 
+fn split_commands(tokens : Vec<String>) -> Vec<Vec<String>> {
 
+    let mut commands = Vec::new();
+    let mut current = Vec::new();
+
+    for token in tokens {
+        if token == "|"  {
+            commands.push(current);
+            current = Vec::new();
+        }else {
+            current.push(token);
+        }
+    }
+
+    if !current.is_empty()  {
+        commands.push(current);
+    }
+
+    commands
+}
+
+
+struct CommandSpec {
+    cmd: String,
+    args: Vec<String>,
+    stdout: Stdio,
+    stderr: Stdio
+}
 
 fn main() -> Result<()> {
 
@@ -329,8 +343,137 @@ fn main() -> Result<()> {
         record_command(&input, &mut history, &mut new_commands);
 
         let mut tokens = tokenize_input(input);
+        let split_commands = split_commands(tokens);
 
-        let redirect_index = tokens.iter().position(|r|
+        let mut all_commands = Vec::new();
+
+        for command in split_commands {
+            all_commands.push(command_specfn(command));
+        }
+
+        // for command in all_commands {
+        //     println!("{} -> {:?} -> {:?} -> {:?} ", command.cmd, command.args, command.stdout, command.stderr);
+        // }
+
+        execute_pipeline(all_commands);
+
+
+
+        // if builtin.contains(&cmd) {
+        //     match cmd.as_str() {
+        //         "exit" => {
+        //             if let Ok(histfile) = env::var("HISTFILE") {
+        //                 history_write(&histfile, &mut history);
+        //             }
+        //             break;
+        //         },
+        //         "echo" => {
+        //             if args.first().map(|s| s == "-z").unwrap_or(false) {
+        //                 builtin_err.write_all(b"echo: invalid option '-z'\n").unwrap();
+        //                 continue;
+        //             }
+
+        //             let mut text = args.join(" ");
+        //             text.push('\n');
+        //             builtin_out.write_all(text.as_bytes()).unwrap();
+        //         },
+        //         "type" => {
+        //             if args.is_empty() {
+        //                 println!("type: missing operand");
+        //                 continue;
+        //             }
+
+        //             for arg in &args {
+        //             if builtin.contains(arg) {
+        //                 println!("{arg} is a shell builtin");
+        //             }else {
+        //                 if let Some(full_path) = path_var.split(separator)
+        //                 .map(|dir| Path::new(dir).join(arg))
+        //                 .find(|p| p.exists() && p.is_executable()) {
+        //                     println!("{arg} is {}", full_path.display());
+        //                 }else{
+        //                     println!("{arg}: not found");
+        //                 }
+        //             }}
+        //         },
+        //         "pwd" => {
+        //             match env::current_dir() {
+        //                 Ok(path) => {
+        //                     println!("{}", path.display());
+        //                 }
+        //                 Err(e) => {
+        //                     println!("{}", e);
+        //                 }
+        //             }
+        //         },
+        //         "cd" => {
+        //             let dir = args.get(0);
+
+        //             let dir = if let Some(arg) = dir {
+        //                 if arg == "~"  {
+        //                     env::home_dir()
+        //                 }else {
+        //                     Some(PathBuf::from(arg))
+        //                 }
+        //             }else{
+        //                 None
+        //             };
+
+        //             if let Some(path) = dir {
+                        
+        //                 if let Err(_) = env::set_current_dir(&path) {
+        //                     println!("cd: {}: No such file or directory", path.display());
+        //                 }
+        //             } else {
+        //                 println!("cd: missing operand");
+        //             }
+        //         },
+        //         "history" => {
+        //             if args.is_empty() || args[0].parse::<i32>().is_ok() {
+        //                 history_print(&history, &args);
+        //             }else {
+        //                 match args[0].as_str() {
+        //                     "-r" => {
+        //                         history_read_append(&args[1], &mut history);
+        //                     },
+        //                     "-w" => {
+        //                         history_write(&args[1], &history);
+        //                     },
+        //                     "-a" => {
+        //                         history_append(&args[1], &new_commands);
+        //                         new_commands.clear();
+        //                     },
+        //                     _ => {
+        //                         println!("invalid flag");
+        //                     }
+        //                 }
+        //             }
+        //         },
+        //         _ => println!("{cmd}: command not found"),
+        //     }
+        // }else {
+        //     if let Some(_full_path) = path_var.split(separator).map(|dir| Path::new(dir).join(cmd.to_string()))
+        //     .find(|p| p.exists() && p.is_executable()) {
+
+        //         let mut output = Command::new(cmd).args(&args).stdout(stdout).stderr(stderr).spawn().expect("Failed to execute process");
+
+        //         output.wait().expect("failed to finish process");
+
+        //     }else{
+        //         println!("{cmd}: command not found");
+        //     }
+        // }
+
+    }
+
+    Ok(())
+
+}
+
+
+fn command_specfn(mut command_tokens: Vec<String>) -> CommandSpec {
+
+    let redirect_index = command_tokens.iter().position(|r|
             r == &">" || r == &"1>" || r == &"2>" || r == &">>" || r == &"1>>" || r == &"2>>"
         );
 
@@ -341,7 +484,7 @@ fn main() -> Result<()> {
 
         match redirect_index {
             Some(index) => {
-                redirection_part = tokens.split_off(index);
+                redirection_part = command_tokens.split_off(index);
             },
             None => {},
         }
@@ -378,9 +521,7 @@ fn main() -> Result<()> {
 
         let stderr_file = redirection_error_target
             .map(|dest| open_out_file(dest, err_append).expect("failed to open stderr file"));
-
         
-
         let stdout = match &stdout_file {
             Some(file) => Stdio::from(file.try_clone().unwrap()),
             None => Stdio::inherit(),
@@ -392,132 +533,48 @@ fn main() -> Result<()> {
         };
 
 
-        let mut builtin_out: Box<dyn Write> = match &stdout_file {
-            Some(file) => Box::new(file.try_clone().unwrap()),
-            None => Box::new(io::stdout()),
-        };
+        // let mut builtin_out: Box<dyn Write> = match &stdout_file {
+        //     Some(file) => Box::new(file.try_clone().unwrap()),
+        //     None => Box::new(io::stdout()),
+        // };
 
-        let mut builtin_err: Box<dyn Write> = match &stderr_file {
-            Some(file) => Box::new(file.try_clone().unwrap()),
-            None => Box::new(io::stderr()),
-        };
+        // let mut builtin_err: Box<dyn Write> = match &stderr_file {
+        //     Some(file) => Box::new(file.try_clone().unwrap()),
+        //     None => Box::new(io::stderr()),
+        // };
 
+        let cmd: String = command_tokens.get(0).cloned().unwrap_or_default();
+        let args = command_tokens.into_iter().skip(1).collect::<Vec<_>>();
 
-        let cmd: String = tokens.get(0).cloned().unwrap_or_default();
-        let args = tokens.into_iter().skip(1).collect::<Vec<_>>();
+        CommandSpec { cmd, args, stdout, stderr }
+}
 
+fn execute_pipeline(commands: Vec<CommandSpec>) {
+    let mut previous_stdout = None;
+    let mut children = Vec::new();
 
+    for (i, cmd) in commands.iter().enumerate() {
+        let mut command = Command::new(&cmd.cmd);
+        command.args(&cmd.args);
 
-        if builtin.contains(&cmd) {
-            match cmd.as_str() {
-                "exit" => {
-                    if let Ok(histfile) = env::var("HISTFILE") {
-                        history_write(&histfile, &mut history);
-                    }
-                    break;
-                },
-                "echo" => {
-                    if args.first().map(|s| s == "-z").unwrap_or(false) {
-                        builtin_err.write_all(b"echo: invalid option '-z'\n").unwrap();
-                        continue;
-                    }
-
-                    let mut text = args.join(" ");
-                    text.push('\n');
-                    builtin_out.write_all(text.as_bytes()).unwrap();
-                },
-                "type" => {
-                    if args.is_empty() {
-                        println!("type: missing operand");
-                        continue;
-                    }
-
-                    for arg in &args {
-                    if builtin.contains(arg) {
-                        println!("{arg} is a shell builtin");
-                    }else {
-                        if let Some(full_path) = path_var.split(separator)
-                        .map(|dir| Path::new(dir).join(arg))
-                        .find(|p| p.exists() && p.is_executable()) {
-                            println!("{arg} is {}", full_path.display());
-                        }else{
-                            println!("{arg}: not found");
-                        }
-                    }}
-                },
-                "pwd" => {
-                    match env::current_dir() {
-                        Ok(path) => {
-                            println!("{}", path.display());
-                        }
-                        Err(e) => {
-                            println!("{}", e);
-                        }
-                    }
-                },
-                "cd" => {
-                    let dir = args.get(0);
-
-                    let dir = if let Some(arg) = dir {
-                        if arg == "~"  {
-                            env::home_dir()
-                        }else {
-                            Some(PathBuf::from(arg))
-                        }
-                    }else{
-                        None
-                    };
-
-                    if let Some(path) = dir {
-                        
-                        if let Err(_) = env::set_current_dir(&path) {
-                            println!("cd: {}: No such file or directory", path.display());
-                        }
-                    } else {
-                        println!("cd: missing operand");
-                    }
-                },
-                "history" => {
-                    if args.is_empty() || args[0].parse::<i32>().is_ok() {
-                        history_print(&history, &args);
-                    }else {
-                        match args[0].as_str() {
-                            "-r" => {
-                                history_read_append(&args[1], &mut history);
-                            },
-                            "-w" => {
-                                history_write(&args[1], &history);
-                            },
-                            "-a" => {
-                                history_append(&args[1], &new_commands);
-                                new_commands.clear();
-                            },
-                            _ => {
-                                println!("invalid flag");
-                            }
-                        }
-                    }
-                },
-                _ => println!("{cmd}: command not found"),
-            }
-        }else {
-            if let Some(_full_path) = path_var.split(separator).map(|dir| Path::new(dir).join(cmd.to_string()))
-            .find(|p| p.exists() && p.is_executable()) {
-
-                let mut output = Command::new(cmd).args(&args).stdout(stdout).stderr(stderr).spawn().expect("Failed to execute process");
-
-                output.wait().expect("failed to finish process");
-
-            }else{
-                println!("{cmd}: command not found");
-            }
+        // stdin
+        if let Some(stdin) = previous_stdout {
+            command.stdin(stdin);
         }
 
+        // stdout
+        if i < commands.len() - 1 {
+            command.stdout(Stdio::piped());
+        }
+
+        let mut child = command.spawn().expect("failed to spawn");
+
+        previous_stdout = child.stdout.take().map(Stdio::from);
+        children.push(child);
     }
 
-    // #[cfg(feature = "with-file-history")]
-    // rl.save_history("history.txt");
-
-    Ok(())
-
+    // wait for all
+    for mut child in children {
+        let _ = child.wait();
+    }
 }
