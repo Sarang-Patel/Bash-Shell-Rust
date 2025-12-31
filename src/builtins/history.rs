@@ -5,7 +5,7 @@ pub fn run(ctx: BuiltinContext) -> bool {
 
     if ctx.args.is_empty() || ctx.args[0].parse::<usize>().is_ok() {
         let n = ctx.args.get(0).and_then(|s| s.parse().ok());
-        history.print(n);
+        history.print(ctx.builtin_out, n);
         return true;
     }
 

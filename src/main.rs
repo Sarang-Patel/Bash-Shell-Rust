@@ -96,17 +96,20 @@ fn main() -> Result<()> {
         let mut all_commands = Vec::new();
 
         for command in split_commands {
-            all_commands.push(command_specfn(command));
+            all_commands.push(command_specfn(command, &builtin));
         }
 
         if all_commands.len() == 1 {
             let CommandSpec {
                 cmd,
                 args,
+                stdin,
                 stdout,
                 stderr,
+                mut builtin_in,
                 mut builtin_out,
                 mut builtin_err,
+                isbuiltin,
             } = all_commands.remove(0);
 
             if builtin.contains(&cmd) {
@@ -129,7 +132,7 @@ fn main() -> Result<()> {
 
 
         }else{
-            pipeline::execute_pipeline(all_commands);
+            pipeline::execute_pipeline(all_commands, &builtin, &mut history);
 
         }
 
@@ -137,12 +140,15 @@ fn main() -> Result<()> {
         
     }
 
+    if let Ok(histfile) = env::var("HISTFILE") {
+        history.write_all(&histfile);
+    }
     Ok(())
 
 }
 
 
-fn command_specfn(mut command_tokens: Vec<String>) -> CommandSpec {
+fn command_specfn(mut command_tokens: Vec<String>, builtin: &HashSet<String>) -> CommandSpec {
 
     let redirect_index = command_tokens.iter().position(|r|
             r == &">" || r == &"1>" || r == &"2>" || r == &">>" || r == &"1>>" || r == &"2>>"
@@ -213,10 +219,13 @@ fn command_specfn(mut command_tokens: Vec<String>) -> CommandSpec {
             Some(file) => Box::new(file.try_clone().unwrap()),
             None => Box::new(io::stderr()),
         };
+        
+        let stdin = Stdio::inherit();
+        let builtin_in = Box::new(io::stdin());
 
         let cmd: String = command_tokens.get(0).cloned().unwrap_or_default();
         let args = command_tokens.into_iter().skip(1).collect::<Vec<_>>();
-
-        CommandSpec { cmd, args, stdout, stderr, builtin_out, builtin_err }
+        let isbuiltin = builtin.contains(&cmd);
+        CommandSpec { cmd, args, stdin, stdout, stderr, builtin_in, builtin_out, builtin_err, isbuiltin }
 }
 

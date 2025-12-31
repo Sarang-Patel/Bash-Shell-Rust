@@ -1,6 +1,8 @@
 use std::fs::{self, OpenOptions};
 use std::io::Write;
 
+use crate::builtins::BuiltinContext;
+
 pub struct History {
     history: Vec<String>,
     new_commands: Vec<String>,
@@ -27,13 +29,13 @@ impl History {
         self.new_commands.push(cmd);
     }
 
-    pub fn print(&self, n: Option<usize>) {
+    pub fn print<W: Write>(&self, mut out: W, n: Option<usize>) {
         let total = self.history.len();
         let n = n.unwrap_or(total);
         let start = total.saturating_sub(n);
 
         for (i, line) in self.history[start..].iter().enumerate() {
-            println!("\t{}  {}", start + i + 1, line);
+            let _ = writeln!(out, "\t{}  {}", start + i + 1, line);
         }
     }
 

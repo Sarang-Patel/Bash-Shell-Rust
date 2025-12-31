@@ -18,11 +18,11 @@ pub fn run(ctx: BuiltinContext) -> bool {
 
     if let Some(path) = dir {
     
-    if let Err(_) = env::set_current_dir(&path) {
-    println!("cd: {}: No such file or directory", path.display());
-    }
+        if let Err(_) = env::set_current_dir(&path) {
+        writeln!(ctx.builtin_err, "cd: {}: No such file or directory", path.display());
+        }
     } else {
-    println!("cd: missing operand");
+        writeln!(ctx.builtin_err, "{}", "cd: missing operand");
     }
     
     true
