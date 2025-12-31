@@ -21,6 +21,7 @@ use std::fs::OpenOptions;
 use rustyline::error::ReadlineError;
 use rustyline::{Editor, Result, completion::Completer};
 use helper::MyHelper;
+use whoami;
 
 use crate::builtins::BuiltinContext;
 use crate::pipeline::CommandSpec;
@@ -50,8 +51,11 @@ fn record_command(cmd: &str, history: &mut Vec<String>, new_commands: &mut Vec<S
 
 fn main() -> Result<()> {
 
+    println!("\n\nMyShell 0.1.0\nRust-based interactive shell\nType 'help' to see available commands.");
+    println!("\n\nUser: {}", whoami::username());
+    println!("Device: {}\n", whoami::devicename());
     let separator = if cfg!(windows) { ";" } else { ":" };
-    let builtin: HashSet<String> = ["exit", "echo", "type", "pwd", "cd", "history"].iter().map(|s| s.to_string()).collect();
+    let builtin: HashSet<String> = ["exit", "echo", "type", "pwd", "cd", "history", "help"].iter().map(|s| s.to_string()).collect();
 
     let helper = MyHelper::new(builtin.clone());
 

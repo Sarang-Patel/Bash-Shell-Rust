@@ -13,3 +13,8 @@ pub fn run(ctx: BuiltinContext) -> bool {
 
     true
 }
+
+pub fn info() -> &'static str {
+    "echo [args..]\n\
+    Write arguments to standard output.\n"
+}

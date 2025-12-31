@@ -32,3 +32,15 @@ pub fn run(ctx: BuiltinContext) -> bool {
 
     true
 }
+
+
+pub fn info() -> &'static str {
+    "history [n]\n\
+history -arw [filename]\n\
+    Display or manipulate the command history.\n
+    options:\n
+    [n]: show only n recent entries\n
+    -a: append current sessions history to file specified\n
+    -w: write current sessions history to file specified\n
+    -r: read history from file specified to current sessions history\n"
+}

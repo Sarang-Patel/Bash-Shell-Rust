@@ -1,7 +1,7 @@
 [package]
 name = "codecrafters-shell"
 version = "0.1.0"
-authors = ["Codecrafters <hello@codecrafters.io>"]
+authors = ["Sarang Patel"]
 edition = "2024"
 rust-version = "1.91"
 
@@ -12,3 +12,4 @@ is_executable = "1.0.5"
 thiserror = "1.0.38"                             # error handling
 rustyline = "17.0.1"
 os_pipe = "1.1"
+whoami = "1.6.1"

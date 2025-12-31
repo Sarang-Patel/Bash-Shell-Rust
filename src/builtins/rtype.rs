@@ -37,3 +37,9 @@ pub fn run(mut ctx: BuiltinContext) -> bool {
 
     true
 }
+
+
+pub fn info() -> &'static str {
+    "type [name..]\n\
+    Display information about command type.\n"
+}

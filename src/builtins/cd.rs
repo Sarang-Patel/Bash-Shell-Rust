@@ -27,3 +27,8 @@ pub fn run(ctx: BuiltinContext) -> bool {
     
     true
 }
+
+pub fn info() -> &'static str {
+    "cd [dir]\n\
+    Change the current working directory.\n"
+}

@@ -21,3 +21,9 @@ pub fn run(ctx: BuiltinContext) -> bool {
     }
     true
 }
+
+
+pub fn info() -> &'static str {
+    "pwd\n\
+    Print the current working directory.\n"
+}

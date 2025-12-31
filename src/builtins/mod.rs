@@ -17,6 +17,7 @@ pub mod pwd;
 pub mod rtype;
 pub mod cd;
 pub mod history;
+pub mod help;
 
 pub fn run(cmd: &str, ctx: BuiltinContext) -> bool {
     match cmd {
@@ -26,6 +27,7 @@ pub fn run(cmd: &str, ctx: BuiltinContext) -> bool {
         "cd" => cd::run(ctx),
         "type" => rtype::run(ctx),
         "history" => history::run(ctx),
+        "help" => help::run(ctx),
         _ => false,
     }
 }
